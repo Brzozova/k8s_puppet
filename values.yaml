@@ -1,0 +1,134 @@
+puppetGlobalVersion: &puppetVersion 7.8.0
+
+puppetserver:
+  tag: *puppetVersion
+  masters:
+    resources:
+      requests:
+        memory: 1024Mi
+        cpu: 750m
+      limits:
+        memory: 2048Mi
+        cpu: 1500m
+    updateStrategy:
+      rollingUpdate:
+        maxSurge: 20%
+        maxUnavailable: 0%
+    readinessProbePeriodSeconds: 70
+    readinessProbeTimeout: 70
+    startupProbePeriodSeconds: 60
+
+    fqdns:
+      alternateServerNames: "<domain_name>"
+
+    service:
+      type: LoadBalancer
+      loadBalancerIP: <LB_IP>
+      annotations:
+        cloud.google.com/load-balancer-type: "Internal"
+        networking.gke.io/internal-load-balancer-allow-global-access: "true"
+
+    customPersistentVolumeClaim:
+      serverdata:
+        enable: true
+        config:
+          persistentVolumeClaim:
+            claimName: puppet-serverdata
+      puppet:
+        enable: true
+        config:
+          persistentVolumeClaim:
+            claimName: puppet-puppet
+      code:
+        enable: true
+        config:
+          persistentVolumeClaim:
+            claimName: puppet-code
+      ca:
+        enable: true
+        config:
+          persistentVolumeClaim:
+            claimName: puppet-ca
+
+
+  puppeturl: "<repository_ssh_url_to_puppet_code>"
+
+r10k:
+  tag: 3.13.0
+  code:
+    cronJob:
+      schedule: '*/1 * * * *'
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 200m
+      limits:
+        memory: 512Mi
+        cpu: 300m
+    viaSsh:
+      credentials:
+        existingSecret: "puppet-r10k-code-creds"
+  hiera:
+    cronJob:
+      schedule: '*/1 * * * *'
+    resources:
+      requests:
+        memory: 256Mi
+        cpu: 200m
+      limits:
+        memory: 512Mi
+        cpu: 300m
+    viaSsh:
+      credentials:
+        existingSecret: "puppet-r10k-hiera-creds"
+puppetdb:
+  tag: *puppetVersion
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 500m
+    limits:
+      memory: 1024Mi
+      cpu: 1000m
+  extraEnv:
+    PUPPETDB_POSTGRES_HOSTNAME: "<puppet_db_domain_name>"
+  customPersistentVolumeClaim:
+    storage:
+      enable: true
+      config:
+        persistentVolumeClaim:
+          claimName: puppet-puppetdb
+
+postgresql:
+  enabled: false
+
+puppetboard:
+  enabled: true
+  tag: 3.3.0
+  resources:
+    requests:
+      memory: 368Mi
+      cpu: 300m
+    limits:
+      memory: 640Mi
+      cpu: 500m
+  ingress:
+    enabled: true
+    ingressClassName: <nginx_internal_class_name>
+    pathType: Prefix
+    hosts:
+      - <puppet_board_domain_name>
+
+hiera:
+  hieradataurl: "<repository_ssh_url_to_puppet_hiera>"
+
+global:
+  credentials:
+    username: "puppet"
+
+storage:
+  storageClass: "gold"
+  annotations:
+    helm.sh/resource-policy: keep
+  size: 1Gi
+
